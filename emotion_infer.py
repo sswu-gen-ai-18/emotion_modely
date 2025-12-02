@@ -32,6 +32,7 @@ else:
 
 print("[emotion_infer] ID2LABEL:", id2label)
 
+
 def predict_emotion(text: str):
     """한 문장의 감정을 (라벨, 점수)로 반환"""
     inputs = tokenizer(
@@ -49,35 +50,36 @@ def predict_emotion(text: str):
     label = id2label[int(idx.item())]
     return label, float(score)
 
+
 def predict_emotions_by_utterance(
     utterances,
     speaker_key: str = "speaker",
     text_key: str = "text",
-    customer_tag: str = "customer",
+    customer_tag: str = "고객",
 ):
     """
     발화 리스트 단위로 감정 분석해 주는 함수.
 
     utterances 예시 형식:
     [
-        {"speaker": "customer", "text": "저 오늘 결제 내역이 이상해서요.", "turn": 1},
-        {"speaker": "agent",    "text": "어떤 점이 이상하신가요?",       "turn": 2},
-        {"speaker": "customer", "text": "두 번 결제된 것 같아요.",       "turn": 3},
+        {"speaker": "고객", "text": "저 오늘 결제 내역이 이상해서요.", "turn": 1},
+        {"speaker": "상담사", "text": "어떤 점이 이상하신가요?",         "turn": 2},
+        {"speaker": "고객", "text": "두 번 결제된 것 같아요.",         "turn": 3},
         ...
     ]
 
-    speaker_key : 발화 주체가 들어 있는 key 이름 (기본 "speaker")
+    speaker_key : 화자 정보 key 이름 (기본 "speaker")
     text_key    : 실제 텍스트가 들어 있는 key 이름 (기본 "text")
-    customer_tag: 고객을 나타내는 값 (예: "customer", "고객", "user" 등)
+    customer_tag: 고객을 나타내는 값 (예: "고객", "customer", "user" 등)
     """
 
     results = []
     customer_turn_index = 1  # 1번째 고객 발화, 2번째 고객 발화...
 
     for utt in utterances:
-        speaker = utt.get(speaker_key)
+        speaker = (utt.get(speaker_key) or "").strip()
         if speaker != customer_tag:
-            # 상담사 발화는 감정 분석 스킵
+            # 상담사/시스템 발화는 감정 분석 스킵
             continue
 
         text = (utt.get(text_key) or "").strip()
@@ -98,3 +100,43 @@ def predict_emotions_by_utterance(
         customer_turn_index += 1
 
     return results
+
+
+def get_last_customer_emotion(
+    conversation,
+    speaker_key: str = "speaker",
+    text_key: str = "text",
+    customer_tag: str = "고객",
+):
+    """
+    대화(conversation) 전체에서 '마지막 고객 발화'의 감정만 가져오는 헬퍼 함수.
+
+    conversation 예시:
+    [
+        {"speaker": "고객", "text": "배송이 너무 늦어요", "turn": 1},
+        {"speaker": "상담사", "text": "확인 도와드리겠습니다", "turn": 2},
+        {"speaker": "고객", "text": "진짜 화나 죽겠어요", "turn": 3},
+    ]
+
+    반환 예시:
+    {
+        "customer_turn_index": 2,
+        "raw_turn_index": 3,
+        "speaker": "고객",
+        "text": "진짜 화나 죽겠어요",
+        "emotion": "anger",
+        "score": 0.93
+    }
+    """
+    results = predict_emotions_by_utterance(
+        conversation,
+        speaker_key=speaker_key,
+        text_key=text_key,
+        customer_tag=customer_tag,
+    )
+
+    if not results:
+        return None
+
+    # 가장 마지막 고객 발화의 감정 정보
+    return results[-1]

@@ -48,3 +48,53 @@ def predict_emotion(text: str):
 
     label = id2label[int(idx.item())]
     return label, float(score)
+
+def predict_emotions_by_utterance(
+    utterances,
+    speaker_key: str = "speaker",
+    text_key: str = "text",
+    customer_tag: str = "customer",
+):
+    """
+    발화 리스트 단위로 감정 분석해 주는 함수.
+
+    utterances 예시 형식:
+    [
+        {"speaker": "customer", "text": "저 오늘 결제 내역이 이상해서요.", "turn": 1},
+        {"speaker": "agent",    "text": "어떤 점이 이상하신가요?",       "turn": 2},
+        {"speaker": "customer", "text": "두 번 결제된 것 같아요.",       "turn": 3},
+        ...
+    ]
+
+    speaker_key : 발화 주체가 들어 있는 key 이름 (기본 "speaker")
+    text_key    : 실제 텍스트가 들어 있는 key 이름 (기본 "text")
+    customer_tag: 고객을 나타내는 값 (예: "customer", "고객", "user" 등)
+    """
+
+    results = []
+    customer_turn_index = 1  # 1번째 고객 발화, 2번째 고객 발화...
+
+    for utt in utterances:
+        speaker = utt.get(speaker_key)
+        if speaker != customer_tag:
+            # 상담사 발화는 감정 분석 스킵
+            continue
+
+        text = (utt.get(text_key) or "").strip()
+        if not text:
+            continue
+
+        label, score = predict_emotion(text)
+
+        results.append({
+            "customer_turn_index": customer_turn_index,  # 고객 기준 n번째 발화
+            "raw_turn_index": utt.get("turn"),          # 전체 대화 기준 turn (있으면)
+            "speaker": speaker,
+            "text": text,
+            "emotion": label,
+            "score": score,                             # 예측 확률(신뢰도)
+        })
+
+        customer_turn_index += 1
+
+    return results
